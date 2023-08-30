@@ -145,7 +145,7 @@ if __name__ == "__main__":
                             help="The name of the keystore to create. If one already exists with this name, overwrites it.")
     new_parser.add_argument("-d", "--expiry_days", dest="days", type=int,
                             help="The amount of days to expiration. This is additive with -s/--expiry_seconds. Default 90.",
-                            default=90)
+                            default=-1)
     new_parser.add_argument("-s", "--expiry_seconds", dest="seconds", type=int,
                             help="The amount of seconds to expiration. This is additive with -d/--expiry_days. Default 0.",
                             default=0)
@@ -170,6 +170,11 @@ if __name__ == "__main__":
     elif options.command == "mktrust":
         ctx.create_truststore(options.name, options.to_trust)
     elif options.command == "new":
+        if options.days < 0:
+            if options.seconds > 0:
+                options.days = 0
+            else:
+                options.days = 90
         ctx.create_keystore(options.name, timedelta(days=options.days, seconds=options.seconds))
     elif options.command == "nuke":
         ctx.nuke()
