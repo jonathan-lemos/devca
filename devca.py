@@ -56,6 +56,17 @@ class DevCa:
         for ks in self.list_keystores():
             self.remove_keystore(ks)
 
+    def __validity_args(self, validity: timedelta) -> List[str]:
+        if validity.seconds == 0:
+            return ["-validity", str(validity.days)]
+        else:
+            s = validity.seconds - 1
+            days = validity.days + 1
+            hour_delta = 23 - s // 3600
+            minute_delta = 59 - (s % 3600) // 60
+            second_delta = 59 - s % 60
+            return ["-startdate", f"-{hour_delta}H-{minute_delta}M-{second_delta}S", "-validity", str(days)]
+
     def create_keystore(self, name: str, cn: Optional[str] = None,
                         validity: timedelta = timedelta(days=365), parent: Optional[str] = None):
         if cn is None:
@@ -75,13 +86,13 @@ class DevCa:
 
         self.remove_keystore(name)
         _kt_run(["-genkeypair", "-keystore", self.keystore_path(name), "-alias", name, "-dname",
-                 f"CN={cn}", "-keyalg", "RSA", "-startdate", f"-{hour_delta}H-{minute_delta}M-{second_delta}S",
-                 "-validity", str(days), "-ext", "KeyUsage:critical=keyCertSign,digitalSignature", "-ext",
-                 "BasicConstraints:critical=ca:true", "-keypass", self.__password, "-storepass", self.__password],
+                 f"CN={cn}", "-keyalg", "RSA", "-ext", "KeyUsage:critical=keyCertSign,digitalSignature", "-ext",
+                 "BasicConstraints:critical=ca:true", "-keypass", self.__password, "-storepass",
+                 self.__password] + self.__validity_args(validity),
                 "Failed to create keystore.")
 
         if parent is not None:
-            self.__sign_keystore(name, parent, cn)
+            self.__sign_keystore(name, parent, cn, validity)
 
     def ensure_created_keystore(self, name: str):
         if not self.keystore_exists(name):
@@ -96,11 +107,12 @@ class DevCa:
         return _kt_run(["-exportcert", "-alias", name, "-keystore", self.keystore_path(name), "-rfc", "-keypass",
                         self.__password, "-storepass", self.__password], "Failed to get certificate.")
 
-    def sign_csr(self, csr: str, signer: str, cn: str) -> str:
+    def sign_csr(self, csr: str, signer: str, cn: str, validity: timedelta) -> str:
         return _kt_run(["-gencert", "-alias", signer, "-ext", "KeyUsage:critical=keyCertSign,digitalSignature", "-ext",
                         "BasicConstraints:critical=ca:true", "-ext", f"SubjectAlternativeName=dns:{cn}", "-rfc",
                         "-keystore", self.keystore_path(signer), "-keypass", self.__password, "-storepass",
-                        self.__password], input=bytes(csr, "utf-8"), errmsg="Failed to create CSR.")
+                        self.__password] + self.__validity_args(validity), input=bytes(csr, "utf-8"),
+                       errmsg="Failed to create CSR.")
 
     def import_certificate(self, name: str, alias: str, cert: str):
         _kt_run(
@@ -108,10 +120,10 @@ class DevCa:
              self.__password, "-storepass", self.__password], "Failed to import certificate",
             input=bytes(cert, "utf-8"))
 
-    def __sign_keystore(self, signee: str, signer: str, cn: str):
+    def __sign_keystore(self, signee: str, signer: str, cn: str, validity: timedelta):
         self.import_certificate(signee, signer, self.get_certificate(signer))
         csr = self.create_csr(signee)
-        cert = self.sign_csr(csr, signer, cn)
+        cert = self.sign_csr(csr, signer, cn, validity)
         self.import_certificate(signee, signee, cert)
 
     def trust_keystore(self, name: str, to_trust: str):
