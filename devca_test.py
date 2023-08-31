@@ -18,14 +18,14 @@ class DevCaTest(unittest.TestCase):
         self.ctx.create_keystore("ca", validity=timedelta(seconds=1))
         self.assertEqual(self.ctx.list_keystores(), ["ca"])
 
+    def test_create_keystore_with_validity_and_parent(self):
+        self.ctx.create_keystore("ca")
+        self.ctx.create_keystore("server", parent="ca")
+        self.assertEqual(self.ctx.list_keystores(), ["ca", "server"])
+
     def test_create_keystore_with_validity_days(self):
         self.ctx.create_keystore("ca", validity=timedelta(days=5, seconds=8555))
         self.assertEqual(self.ctx.list_keystores(), ["ca"])
-
-    def test_sign_keystore(self):
-        self.ctx.create_keystore("ca")
-        self.ctx.create_keystore("server")
-        self.ctx.sign_keystore("server", "ca")
 
     def test_create_truststore(self):
         self.ctx.create_keystore("ca")
